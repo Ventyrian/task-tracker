@@ -18,11 +18,20 @@ public interface TaskLockConfig extends Config
 	}
 
     @ConfigItem(
+            keyName = "currentTask",
+            name = "Current Task",
+            description = "Current assigned task",
+            //hidden = true,
+            position = 1
+    )
+    default String currentTask() {return "";}
+
+    @ConfigItem(
             keyName = "activeTasks",
             name = "Active Tasks",
             description = "Comma separated list of active tasks",
-            hidden = true,
-            position = 1
+            //hidden = true,
+            position = 2
     )
     default String activeTasks() {return "";}
 
@@ -30,8 +39,8 @@ public interface TaskLockConfig extends Config
             keyName = "backlogTasks",
             name = "Backlogged Tasks",
             description = "Comma separated list of backlogged tasks",
-            hidden = true,
-            position = 2
+            //hidden = true,
+            position = 3
     )
     default String backlogTasks() {return "";}
 
@@ -39,8 +48,8 @@ public interface TaskLockConfig extends Config
             keyName = "completedTasks",
             name = "Completed Tasks",
             description = "Comma separated list of completed tasks",
-            hidden = true,
-            position = 3
+            //hidden = true,
+            position = 4
     )
     default String completedTasks() {return "";}
 }

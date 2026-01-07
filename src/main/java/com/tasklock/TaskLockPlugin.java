@@ -7,6 +7,8 @@ import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -47,9 +49,7 @@ public class TaskLockPlugin extends Plugin
 
         SwingUtilities.invokeLater( () -> {
             panel = new TaskLockPanel(configManager);
-            panel.setActiveTasks();
-            panel.setBacklogTasks();
-            panel.setCompletedTasks();
+            panel.setupSections();
 
             navButton = NavigationButton.builder()
                     .tooltip("Task Lock")
@@ -68,6 +68,16 @@ public class TaskLockPlugin extends Plugin
         clientToolbar.removeNavigation(navButton);
 		log.debug("Task Lock stopped!");
 	}
+
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event)
+    {
+        // Check if the change belongs to your plugin group
+        if (event.getGroup().equals("tasklock"))
+        {
+            panel.refresh();
+        }
+    }
 
 	@Provides
 	TaskLockConfig provideConfig(ConfigManager configManager)
