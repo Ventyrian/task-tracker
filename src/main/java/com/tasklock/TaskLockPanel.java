@@ -33,9 +33,11 @@ import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 
@@ -70,6 +72,7 @@ public class TaskLockPanel extends PluginPanel
     private final Border line = BorderFactory.createLineBorder(Color.WHITE);
     private final Border compoundBorder = BorderFactory.createCompoundBorder(line, margin);
     // Managers and logger
+    private final TaskLockPlugin plugin;
     private final ConfigManager configManager;
     private final Gson gson;
     private final SpriteManager spriteManager;
@@ -95,9 +98,10 @@ public class TaskLockPanel extends PluginPanel
     }
 
     // Constructor
-    public TaskLockPanel(ConfigManager configManager, Gson gson, SpriteManager spriteManager)
+    public TaskLockPanel(TaskLockPlugin plugin, ConfigManager configManager, Gson gson, SpriteManager spriteManager)
     {
         super();
+        this.plugin = plugin;
         this.configManager = configManager;
         this.gson = gson;
         this.spriteManager = spriteManager;
@@ -194,6 +198,24 @@ public class TaskLockPanel extends PluginPanel
     // Save task data to config
     private void saveTaskData(TaskLockData data)
     {
+        Comparator<String> naturalOrder = createNaturalOrderComparator();
+
+        // Sort Active Tasks
+        if (data.getActive() != null)
+        {
+            data.getActive().sort(naturalOrder);
+        }
+        // Sort Backlog Tasks
+        if (data.getBacklog() != null)
+        {
+            data.getBacklog().sort(naturalOrder);
+        }
+        // Sort Completed Tasks
+        if (data.getCompleted() != null)
+        {
+            data.getCompleted().sort(Comparator.comparing(CompletedTask::getCompletedAt));
+        }
+
         String json = gson.toJson(data);
         configManager.setConfiguration("tasklock","allTasksJson",json);
     }
@@ -215,6 +237,8 @@ public class TaskLockPanel extends PluginPanel
         {
             return;
         }
+
+        plugin.playSound("dice.wav");
 
         Random random = new Random();
         String newCurrentTask = rollableTasks.get(random.nextInt(rollableTasks.size()));
@@ -245,10 +269,12 @@ public class TaskLockPanel extends PluginPanel
 
         if (key.equals("backlog"))
         {
+            plugin.playSound("equip.wav");
             data.getBacklog().add(currentTask);
         }
         else if (key.equals("complete"))
         {
+            plugin.playSound("coins.wav");
             data.getCompleted().add(new CompletedTask(currentTask));
         }
         data.getActive().remove(currentTask);
@@ -257,12 +283,12 @@ public class TaskLockPanel extends PluginPanel
         saveTaskData(data);
     }
 
-    // Button function allows user to edit active or backlogged tasks
+    // Button function allows user to edit tasks
     private void openEditDialog(String title, String key)
     {
         TaskLockData data = getTaskData();
         List<CompletedTask> completedTasks = data.getCompleted();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm").withZone(ZoneId.systemDefault());
+        SimpleDateFormat dateFormat = plugin.getDateTimeFormat();
         List<String> currentList;
         String windowTitle = "Edit " + title;
 
@@ -278,75 +304,150 @@ public class TaskLockPanel extends PluginPanel
                 currentList = new ArrayList<>();
                 for (CompletedTask task : completedTasks)
                 {
-                    currentList.add(formatter.format(task.getCompletedAt()) + " - " + task.getTask());
+                    if (dateFormat != null)
+                    {
+                        Date date = new Date(task.getCompletedAt());
+
+                        currentList.add(dateFormat.format(date) + " - " + task.getTask());
+                    }
+                    else
+                    {
+                        currentList.add(task.getTask());
+                    }
                 }
                 break;
             default:
                 return;
         }
 
-        // Convert List to a single String with new lines
-        String currentText = String.join("\n", currentList);
+        // Convert List to a single String with new lines, this will be the starting text
+        String textToShow = String.join("\n", currentList);
 
-        // Create a Text Area for the user to type in
-        JTextArea textArea = new JTextArea(currentText);
-        textArea.setRows(10);
-        textArea.setColumns(40);
-        textArea.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        textArea.setForeground(Color.WHITE);
-        textArea.setCaretColor(Color.WHITE);
-
-        JScrollPane scrollPane = new JScrollPane(textArea);
-
-        // Layout the panel
-        JPanel mainPanel = new JPanel(new BorderLayout(0, 10));
-        if (!key.equals("completed"))
+        while (true)
         {
+            // Create a Text Area for the user to type in
+            JTextArea textArea = new JTextArea(textToShow);
+            textArea.setRows(10);
+            textArea.setColumns(40);
+            textArea.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+            textArea.setForeground(Color.WHITE);
+            textArea.setCaretColor(Color.WHITE);
+
+            JScrollPane scrollPane = new JScrollPane(textArea);
+
+            // Layout the panel
+            JPanel mainPanel = new JPanel(new BorderLayout(0, 10));
             mainPanel.add(new JLabel("One task per line:"), BorderLayout.NORTH);
-        }
-        mainPanel.add(scrollPane, BorderLayout.CENTER);
+            mainPanel.add(scrollPane, BorderLayout.CENTER);
 
 
-        // Create the "Clear All" button
-        JButton clearButton = new JButton("Clear All");
-        clearButton.setFocusable(false);
-        clearButton.addActionListener(e -> textArea.setText(""));
-        mainPanel.add(clearButton, BorderLayout.SOUTH);
+            // Create the "Clear All" button
+            JButton clearButton = new JButton("Clear All");
+            clearButton.setFocusable(false);
+            clearButton.addActionListener(e -> textArea.setText(""));
+            mainPanel.add(clearButton, BorderLayout.SOUTH);
 
 
-        if (key.equals("completed"))
-        {
-            textArea.setEditable(false);
-            windowTitle = "Completed Tasks Details";
-        }
+            // Show the Dialog
+            int result = JOptionPane.showConfirmDialog(
+                    this,
+                    mainPanel,
+                    windowTitle,
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE
+            );
 
-        // Show the Dialog
-        int result = JOptionPane.showConfirmDialog(
-                this,
-                mainPanel,
-                windowTitle,
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
-        );
+            // User cancelled
+            if (result != JOptionPane.OK_OPTION)
+            {
+                break;
+            }
 
-        if (result == JOptionPane.OK_OPTION)
-        {
-           if (key.equals("backlog") || key.equals("active") || (textArea.getText().isEmpty()))
-           {
-                updateListFromText(data, key, textArea.getText());
-           }
+            // Try to update
+            boolean success = updateListFromText(data, key, textArea.getText());
+
+            if (success)
+            {
+                break;
+            }
+
+            // If success is FALSE, the loop runs again
+            // Update textToShow so the textArea re-opens with the User's bad input so they can fix it instead of typing it all again
+            textToShow = textArea.getText();
+
         }
     }
 
     // Helper function to update inner TaskData Lists from text
-    private void updateListFromText(TaskLockData data, String key, String text)
+    private boolean updateListFromText(TaskLockData data, String key, String text)
     {
+        // List for active and backlog tasks
         List<String> newList = new ArrayList<>();
-        List<CompletedTask> completedTasks = new  ArrayList<>();
+        // List for completed tasks
+        List<CompletedTask> newCompletedTasks = new  ArrayList<>();
+        // Date format from configuration
+        SimpleDateFormat dateFormat = plugin.getDateTimeFormat();
 
-        for (String line : text.split("\n"))
+        // Don't allow "rolling over" invalid dates (e.g., 32nd of Jan -> 1st Feb)
+        if (dateFormat != null)
         {
-            if (!line.trim().isEmpty())
+            dateFormat.setLenient(false);
+        }
+
+        // Split textArea by lines and initiate lineNumber
+        String [] lines = text.split("\n");
+        int lineNumber = 0;
+
+        for (String line : lines)
+        {
+            lineNumber++;
+            // Skip empty lines
+            if (line.isEmpty())
+            {
+                continue;
+            }
+            // Completed Task Logic
+            if (key.equals("completed"))
+            {
+                // If no format is selected just create task with current time (This should not happen)
+                if (dateFormat == null)
+                {
+                    newCompletedTasks.add(new CompletedTask(line.trim()));
+                    continue;
+                }
+
+                // Split string, limit=2 ensures if the task name has a hyphen it doesn't break
+                String[] split = line.split(" - ",2);
+
+                // Validate split and text format
+                if (split.length < 2)
+                {
+                    showError("Format Error on Line " + lineNumber + ":\n" +
+                            "Missing separator ' - '\n" +
+                            "Expected: [Date] - [Task Name]\n" +
+                            "Found: " + line);
+                    return false;
+                }
+
+                String datePart = split[0].trim();
+                String taskPart = split[1].trim();
+
+                // Validate date
+                try
+                {
+                    Date date = dateFormat.parse(datePart);
+                    newCompletedTasks.add(new CompletedTask(date.getTime(), taskPart));
+                }
+                catch (ParseException e)
+                {
+                    showError("Date Error on Line " + lineNumber + ":\n" +
+                            "Invalid date format: '" + datePart + "'\n" +
+                            "Expected format: " + plugin.getTimestampFormat());
+                    return false;
+                }
+            }
+            // Active and Backlog Task Logic
+            else
             {
                 newList.add(line.trim());
             }
@@ -361,11 +462,18 @@ public class TaskLockPanel extends PluginPanel
                 data.setBacklog(newList);
                 break;
             case "completed":
-                data.setCompleted(completedTasks);
+                data.setCompleted(newCompletedTasks);
                 break;
         }
 
         saveTaskData(data);
+        return true;
+    }
+
+    // Helper function for clean error alerts
+    private void showError(String message)
+    {
+        JOptionPane.showMessageDialog(this, message, "Edit Failed", JOptionPane.ERROR_MESSAGE);
     }
 
     // Sets the current task icon based on recognized strings in taskText
@@ -531,7 +639,7 @@ public class TaskLockPanel extends PluginPanel
                     taskLabel.setForeground(Color.WHITE);
                     if (task.equals(currentTaskLabel.getText()) && baseHeader.equals(activeString))
                     {
-                        taskLabel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.GREEN),BorderFactory.createEmptyBorder(3,0,3,3)));
+                        taskLabel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(plugin.getCurrentTaskBorderColor()),BorderFactory.createEmptyBorder(3,0,3,3)));
                     }
 
                     taskLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -614,6 +722,7 @@ public class TaskLockPanel extends PluginPanel
         completedButton.addActionListener(e -> openEditDialog("Completed Tasks", "completed"));
     }
 
+    // Helper function to add the right click menu to list items within panels
     private JPopupMenu createPopupMenu(String task, String baseHeader)
     {
         JPopupMenu menu = new JPopupMenu();
@@ -636,11 +745,22 @@ public class TaskLockPanel extends PluginPanel
         // Option 3: Make current task / backlog task
         else
         {
-            JMenuItem makeCurrentItem = new JMenuItem("Make Current Task");
-            makeCurrentItem.addActionListener(e -> {
-                makeCurrentTask(task);
-            });
-            menu.add(makeCurrentItem);
+            if (!task.equals(getCurrentTaskAsString()))
+            {
+                JMenuItem makeCurrentItem = new JMenuItem("Make Current Task");
+                makeCurrentItem.addActionListener(e -> {
+                    makeCurrentTask(task);
+                });
+                menu.add(makeCurrentItem);
+            }
+            else
+            {
+                JMenuItem resetCurrentItem = new JMenuItem("Reset Current Task");
+                resetCurrentItem.addActionListener(e -> {
+                    makeCurrentTask("");
+                });
+                menu.add(resetCurrentItem);
+            }
 
             JMenuItem backlogItem = new JMenuItem("Backlog Task");
             backlogItem.addActionListener(e -> {
@@ -685,6 +805,41 @@ public class TaskLockPanel extends PluginPanel
                 menu.show(e.getComponent(), e.getX(), e.getY());
             }
         });
+    }
+
+    // Helper method to create the Comparator<String> for comparing numbers naturally
+    private Comparator<String> createNaturalOrderComparator()
+    {
+        return (s1, s2) ->
+        {
+            // Extract leading numbers from both strings
+            Integer n1 = extractLeadingNumber(s1);
+            Integer n2 = extractLeadingNumber(s2);
+
+            // If both have numbers, compare the numbers numerically
+            if (n1 != null && n2 != null) {
+                int numCompare = n1.compareTo(n2);
+                if (numCompare != 0) return numCompare;
+            }
+
+            // If numbers are equal or one doesn't have a number, fallback to alphabetical
+            return s1.compareToIgnoreCase(s2);
+        };
+    }
+
+    // Helper method to grab the number at the start of the string
+    private Integer extractLeadingNumber(String s) {
+        try {
+            String[] parts = s.split("\\s+"); // Split by space
+            if (parts.length > 0) {
+                // Remove any non-digit characters (like ':' or letters) from the first part
+                String numStr = parts[0].replaceAll("\\D", "");
+                return numStr.isEmpty() ? null : Integer.parseInt(numStr);
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return null;
     }
 
     // Menu function for right click delete task
