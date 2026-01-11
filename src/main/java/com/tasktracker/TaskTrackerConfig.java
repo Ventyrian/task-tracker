@@ -1,4 +1,4 @@
-package com.tasklock;
+package com.tasktracker;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -8,8 +8,8 @@ import net.runelite.client.config.ConfigItem;
 
 import java.awt.Color;
 
-@ConfigGroup("tasklock")
-public interface TaskLockConfig extends Config
+@ConfigGroup("tasktracker")
+public interface TaskTrackerConfig extends Config
 {
 	@ConfigItem(
 		keyName = "showInfoBox",

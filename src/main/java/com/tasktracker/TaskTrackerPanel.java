@@ -1,8 +1,6 @@
-package com.tasklock;
+package com.tasktracker;
 
-import com.google.gson.Gson;
 import net.runelite.api.SpriteID;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -33,22 +31,19 @@ import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 
 
-public class TaskLockPanel extends PluginPanel
+public class TaskTrackerPanel extends PluginPanel
 {
     // Strings used in ListPanels and Headers
-    private final String currentString = "Current Task";
-    private final String activeString = "Active Tasks";
-    private final String backlogString = "Backlog";
-    private final String completedString = "Completed Tasks";
+    public static final String currentString = "Current Task";
+    public static final String activeString = "Active Tasks";
+    public static final String backlogString = "Backlog";
+    public static final String completedString = "Completed Tasks";
     // Current Task section of UI
     private final JPanel currentTaskPanel = new JPanel();
     private final JLabel currentTaskLabel = new JLabel("No Current Task");
@@ -72,11 +67,9 @@ public class TaskLockPanel extends PluginPanel
     private final Border line = BorderFactory.createLineBorder(Color.WHITE);
     private final Border compoundBorder = BorderFactory.createCompoundBorder(line, margin);
     // Managers and logger
-    private final TaskLockPlugin plugin;
-    private final ConfigManager configManager;
-    private final Gson gson;
+    private final TaskTrackerPlugin plugin;
     private final SpriteManager spriteManager;
-    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TaskLockPanel.class);
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TaskTrackerPanel.class);
     // Button Icons
     private static final ImageIcon ROLL_ICON;
     private static final ImageIcon ARROW_ICON;
@@ -86,24 +79,22 @@ public class TaskLockPanel extends PluginPanel
     // Code run only once after initialized
     static {
         // This block runs once when the class is loaded
-        final BufferedImage rollImg = ImageUtil.loadImageResource(TaskLockPlugin.class, "roll.png");
+        final BufferedImage rollImg = ImageUtil.loadImageResource(TaskTrackerPlugin.class, "img/roll.png");
         ROLL_ICON = new ImageIcon(ImageUtil.resizeImage(rollImg, 16, 16));
 
-        final BufferedImage backlogImg = ImageUtil.loadImageResource(TaskLockPlugin.class, "arrow.png");
+        final BufferedImage backlogImg = ImageUtil.loadImageResource(TaskTrackerPlugin.class, "img/arrow.png");
         ARROW_ICON = new ImageIcon(ImageUtil.resizeImage(backlogImg, 16, 16));
 
-        final BufferedImage checkImg = ImageUtil.loadImageResource(TaskLockPlugin.class, "icon.png");
+        final BufferedImage checkImg = ImageUtil.loadImageResource(TaskTrackerPlugin.class, "img/icon.png");
         CHECK_ICON = new ImageIcon(ImageUtil.resizeImage(checkImg, 16, 16));
 
     }
 
     // Constructor
-    public TaskLockPanel(TaskLockPlugin plugin, ConfigManager configManager, Gson gson, SpriteManager spriteManager)
+    public TaskTrackerPanel(TaskTrackerPlugin plugin, SpriteManager spriteManager)
     {
         super();
         this.plugin = plugin;
-        this.configManager = configManager;
-        this.gson = gson;
         this.spriteManager = spriteManager;
 
         setLayout(new GridBagLayout());
@@ -127,10 +118,10 @@ public class TaskLockPanel extends PluginPanel
         c.insets = new Insets(0, 0, 10, 0); // Bottom margin for spacing
 
         // Get content from config
-        TaskLockData data = getTaskData();
+        TaskTrackerData data = plugin.getTaskData();
 
         // SECTION 1: Current Task
-        addSection(this, c, new JLabel(currentString), currentTaskPanel, rollTaskButton, getTaskData().getActive(), currentString);
+        addSection(this, c, new JLabel(currentString), currentTaskPanel, rollTaskButton, data.getActive(), currentString);
 
         // SECTION 2: Active Tasks
         addSection(this, c, activeHeader, activeListPanel, activeButton, data.getActive(), activeString);
@@ -139,7 +130,7 @@ public class TaskLockPanel extends PluginPanel
         addSection(this, c, backlogHeader, backlogListPanel, backlogButton, data.getBacklog(), backlogString);
 
         // SECTION 4: Completed Tasks
-        addSection(this, c, completedHeader, completedListPanel, completedButton, getCompletedTaskList(), completedString);
+        addSection(this, c, completedHeader, completedListPanel, completedButton, plugin.getCompletedTaskList(), completedString);
 
         revalidate();
         repaint();
@@ -184,109 +175,10 @@ public class TaskLockPanel extends PluginPanel
         });
     }
 
-    // Get task data from config
-    private TaskLockData getTaskData()
-    {
-        String json = configManager.getConfiguration("tasklock","allTasksJson");
-        if (json == null || json.isEmpty())
-        {
-            return new TaskLockData();
-        }
-        return gson.fromJson(json, TaskLockData.class);
-    }
-
-    // Save task data to config
-    private void saveTaskData(TaskLockData data)
-    {
-        Comparator<String> naturalOrder = createNaturalOrderComparator();
-
-        // Sort Active Tasks
-        if (data.getActive() != null)
-        {
-            data.getActive().sort(naturalOrder);
-        }
-        // Sort Backlog Tasks
-        if (data.getBacklog() != null)
-        {
-            data.getBacklog().sort(naturalOrder);
-        }
-        // Sort Completed Tasks
-        if (data.getCompleted() != null)
-        {
-            data.getCompleted().sort(Comparator.comparing(CompletedTask::getCompletedAt));
-        }
-
-        String json = gson.toJson(data);
-        configManager.setConfiguration("tasklock","allTasksJson",json);
-    }
-
-    // Button function roll a unique task, rerolling the same task is impossible
-    private void rollTask()
-    {
-        logger.info("Rolling Task");
-        TaskLockData data = getTaskData();
-
-        // Make sure we don't reroll the same task
-        List<String> rollableTasks = new ArrayList<>(data.getActive());
-        if (rollableTasks.contains(data.getCurrentTask()))
-        {
-            rollableTasks.remove(data.getCurrentTask());
-        }
-        // Make sure we have a task to roll
-        if (rollableTasks.isEmpty())
-        {
-            return;
-        }
-
-        plugin.playSound("dice.wav");
-
-        Random random = new Random();
-        String newCurrentTask = rollableTasks.get(random.nextInt(rollableTasks.size()));
-
-        data.setCurrentTask(newCurrentTask);
-        saveTaskData(data);
-    }
-
-    // Button function backlog or complete a task based on key
-    private void backlogCompleteTask(String key)
-    {
-        logger.info("Backlog Complete Task Button Clicked");
-        TaskLockData data = getTaskData();
-        String currentTask = data.getCurrentTask();
-        List<String> activeTasks = data.getActive();
-
-        if (currentTask == null || currentTask.isEmpty() || currentTask.equals("No Current Task"))
-        {
-            logger.info("No Current Task");
-            return;
-        }
-
-        if (activeTasks.isEmpty() || !activeTasks.contains(currentTask))
-        {
-            logger.info("No Active Tasks or Current Task not in list");
-            return;
-        }
-
-        if (key.equals("backlog"))
-        {
-            plugin.playSound("equip.wav");
-            data.getBacklog().add(currentTask);
-        }
-        else if (key.equals("complete"))
-        {
-            plugin.playSound("coins.wav");
-            data.getCompleted().add(new CompletedTask(currentTask));
-        }
-        data.getActive().remove(currentTask);
-        data.setCurrentTask("");
-
-        saveTaskData(data);
-    }
-
     // Button function allows user to edit tasks
     private void openEditDialog(String title, String key)
     {
-        TaskLockData data = getTaskData();
+        TaskTrackerData data = plugin.getTaskData();
         List<CompletedTask> completedTasks = data.getCompleted();
         SimpleDateFormat dateFormat = plugin.getDateTimeFormat();
         List<String> currentList;
@@ -364,7 +256,7 @@ public class TaskLockPanel extends PluginPanel
             }
 
             // Try to update
-            boolean success = updateListFromText(data, key, textArea.getText());
+            boolean success = plugin.updateListFromText(data, key, textArea.getText());
 
             if (success)
             {
@@ -378,100 +270,8 @@ public class TaskLockPanel extends PluginPanel
         }
     }
 
-    // Helper function to update inner TaskData Lists from text
-    private boolean updateListFromText(TaskLockData data, String key, String text)
-    {
-        // List for active and backlog tasks
-        List<String> newList = new ArrayList<>();
-        // List for completed tasks
-        List<CompletedTask> newCompletedTasks = new  ArrayList<>();
-        // Date format from configuration
-        SimpleDateFormat dateFormat = plugin.getDateTimeFormat();
-
-        // Don't allow "rolling over" invalid dates (e.g., 32nd of Jan -> 1st Feb)
-        if (dateFormat != null)
-        {
-            dateFormat.setLenient(false);
-        }
-
-        // Split textArea by lines and initiate lineNumber
-        String [] lines = text.split("\n");
-        int lineNumber = 0;
-
-        for (String line : lines)
-        {
-            lineNumber++;
-            // Skip empty lines
-            if (line.isEmpty())
-            {
-                continue;
-            }
-            // Completed Task Logic
-            if (key.equals("completed"))
-            {
-                // If no format is selected just create task with current time (This should not happen)
-                if (dateFormat == null)
-                {
-                    newCompletedTasks.add(new CompletedTask(line.trim()));
-                    continue;
-                }
-
-                // Split string, limit=2 ensures if the task name has a hyphen it doesn't break
-                String[] split = line.split(" - ",2);
-
-                // Validate split and text format
-                if (split.length < 2)
-                {
-                    showError("Format Error on Line " + lineNumber + ":\n" +
-                            "Missing separator ' - '\n" +
-                            "Expected: [Date] - [Task Name]\n" +
-                            "Found: " + line);
-                    return false;
-                }
-
-                String datePart = split[0].trim();
-                String taskPart = split[1].trim();
-
-                // Validate date
-                try
-                {
-                    Date date = dateFormat.parse(datePart);
-                    newCompletedTasks.add(new CompletedTask(date.getTime(), taskPart));
-                }
-                catch (ParseException e)
-                {
-                    showError("Date Error on Line " + lineNumber + ":\n" +
-                            "Invalid date format: '" + datePart + "'\n" +
-                            "Expected format: " + plugin.getTimestampFormat());
-                    return false;
-                }
-            }
-            // Active and Backlog Task Logic
-            else
-            {
-                newList.add(line.trim());
-            }
-        }
-
-        switch (key)
-        {
-            case "active":
-                data.setActive(newList);
-                break;
-            case "backlog":
-                data.setBacklog(newList);
-                break;
-            case "completed":
-                data.setCompleted(newCompletedTasks);
-                break;
-        }
-
-        saveTaskData(data);
-        return true;
-    }
-
     // Helper function for clean error alerts
-    private void showError(String message)
+    public void showError(String message)
     {
         JOptionPane.showMessageDialog(this, message, "Edit Failed", JOptionPane.ERROR_MESSAGE);
     }
@@ -529,38 +329,10 @@ public class TaskLockPanel extends PluginPanel
         }
     }
 
-    // Helper function to get the completed task list in the List<String> format
-    private List<String> getCompletedTaskList()
-    {
-        TaskLockData data = getTaskData();
-        List<CompletedTask> completed = new ArrayList<>(data.getCompleted());
-        List<String> list = new ArrayList<>();
-
-        if (completed != null)
-        {
-            for (CompletedTask task : completed)
-            {
-                list.add(task.getTask());
-            }
-        }
-
-        return list;
-    }
-
-    // Helper function to get the current task as a string even if config is null
-    private String getCurrentTaskAsString()
-    {
-        // Get current task
-        String currentTask = getTaskData().getCurrentTask();
-        currentTask = currentTask == null || currentTask.isEmpty() ? "No Current Task" : currentTask;
-        return currentTask;
-
-    }
-
     // Helper function to set the roll task button label
     private void updateTaskButtonLabel()
     {
-        String currentTask = getCurrentTaskAsString();
+        String currentTask = plugin.getCurrentTaskAsString();
 
         // Set Button Text
         if (currentTask.equals("No Current Task"))
@@ -596,7 +368,7 @@ public class TaskLockPanel extends PluginPanel
     // Helper function used to set up and add list panel into parent panel
     private void setupAndAddListPanel(JPanel parent, GridBagConstraints c, JPanel panel, List<String> contentList, String baseHeader )
     {
-        String currentTask = getCurrentTaskAsString();
+        String currentTask = plugin.getCurrentTaskAsString();
 
         // Add Content Text (Left Aligned)
         panel.removeAll();
@@ -632,10 +404,18 @@ public class TaskLockPanel extends PluginPanel
             // If list is not empty, add each task to the panel
             else
             {
+                int index = 1;
                 for (String task : contentList)
                 {
                     taskLabel = new JLabel();
-                    taskLabel.setText("• " + task);
+                    if (baseHeader.equals(completedString))
+                    {
+                        taskLabel.setText(index++ + ". " + task);
+                    }
+                    else
+                    {
+                        taskLabel.setText("• " + task);
+                    }
                     taskLabel.setForeground(Color.WHITE);
                     if (task.equals(currentTaskLabel.getText()) && baseHeader.equals(activeString))
                     {
@@ -714,9 +494,9 @@ public class TaskLockPanel extends PluginPanel
     // Helper function to add all action listeners to buttons
     private void addButtonListeners()
     {
-        rollTaskButton.addActionListener(e -> rollTask());
-        backlogTaskButton.addActionListener(e -> backlogCompleteTask("backlog"));
-        completeTaskButton.addActionListener(e -> backlogCompleteTask("complete"));
+        rollTaskButton.addActionListener(e -> plugin.rollTask());
+        backlogTaskButton.addActionListener(e -> plugin.backlogCompleteTask("backlog"));
+        completeTaskButton.addActionListener(e -> plugin.backlogCompleteTask("complete"));
         activeButton.addActionListener(e -> openEditDialog("Active Tasks","active"));
         backlogButton.addActionListener(e -> openEditDialog("Backlog","backlog"));
         completedButton.addActionListener(e -> openEditDialog("Completed Tasks", "completed"));
@@ -730,7 +510,7 @@ public class TaskLockPanel extends PluginPanel
         // Option 1: Delete specific task
         JMenuItem deleteItem = new JMenuItem("Delete Task");
         deleteItem.addActionListener(e -> {
-            deleteTask(task,baseHeader);
+            plugin.deleteTask(task,baseHeader);
         });
 
         //Option 2: Move back to Active
@@ -738,18 +518,18 @@ public class TaskLockPanel extends PluginPanel
         {
             JMenuItem reactiveItem = new JMenuItem("Move to Active");
             reactiveItem.addActionListener(e -> {
-                moveTaskToActive(task,baseHeader);
+                plugin.moveTaskToActive(task,baseHeader);
             });
             menu.add(reactiveItem);
         }
         // Option 3: Make current task / backlog task
         else
         {
-            if (!task.equals(getCurrentTaskAsString()))
+            if (!task.equals(plugin.getCurrentTaskAsString()))
             {
                 JMenuItem makeCurrentItem = new JMenuItem("Make Current Task");
                 makeCurrentItem.addActionListener(e -> {
-                    makeCurrentTask(task);
+                    plugin.makeCurrentTask(task);
                 });
                 menu.add(makeCurrentItem);
             }
@@ -757,14 +537,14 @@ public class TaskLockPanel extends PluginPanel
             {
                 JMenuItem resetCurrentItem = new JMenuItem("Reset Current Task");
                 resetCurrentItem.addActionListener(e -> {
-                    makeCurrentTask("");
+                    plugin.makeCurrentTask("");
                 });
                 menu.add(resetCurrentItem);
             }
 
             JMenuItem backlogItem = new JMenuItem("Backlog Task");
             backlogItem.addActionListener(e -> {
-                backlogTask(task);
+                plugin.backlogTask(task);
             });
             menu.add(backlogItem);
 
@@ -805,107 +585,6 @@ public class TaskLockPanel extends PluginPanel
                 menu.show(e.getComponent(), e.getX(), e.getY());
             }
         });
-    }
-
-    // Helper method to create the Comparator<String> for comparing numbers naturally
-    private Comparator<String> createNaturalOrderComparator()
-    {
-        return (s1, s2) ->
-        {
-            // Extract leading numbers from both strings
-            Integer n1 = extractLeadingNumber(s1);
-            Integer n2 = extractLeadingNumber(s2);
-
-            // If both have numbers, compare the numbers numerically
-            if (n1 != null && n2 != null) {
-                int numCompare = n1.compareTo(n2);
-                if (numCompare != 0) return numCompare;
-            }
-
-            // If numbers are equal or one doesn't have a number, fallback to alphabetical
-            return s1.compareToIgnoreCase(s2);
-        };
-    }
-
-    // Helper method to grab the number at the start of the string
-    private Integer extractLeadingNumber(String s) {
-        try {
-            String[] parts = s.split("\\s+"); // Split by space
-            if (parts.length > 0) {
-                // Remove any non-digit characters (like ':' or letters) from the first part
-                String numStr = parts[0].replaceAll("\\D", "");
-                return numStr.isEmpty() ? null : Integer.parseInt(numStr);
-            }
-        } catch (NumberFormatException e) {
-            return null;
-        }
-        return null;
-    }
-
-    // Menu function for right click delete task
-    private void deleteTask(String task, String section)
-    {
-        TaskLockData data = getTaskData();
-
-        switch(section)
-        {
-            case activeString:
-                data.getActive().remove(task);
-                break;
-            case backlogString:
-                data.getBacklog().remove(task);
-                break;
-            case completedString:
-                data.getCompleted().removeIf(t -> t.getTask().equals(task));
-                break;
-            default:
-                break;
-        }
-
-        saveTaskData(data);
-    }
-
-    // Menu function for right click move task to active
-    private void moveTaskToActive(String task, String section)
-    {
-        TaskLockData data = getTaskData();
-
-        switch(section)
-        {
-            case backlogString:
-                data.getActive().add(task);
-                data.getBacklog().remove(task);
-                break;
-            case completedString:
-                data.getActive().add(task);
-                data.getCompleted().removeIf(t -> t.getTask().equals(task));
-                break;
-            default:
-                break;
-        }
-
-        saveTaskData(data);
-    }
-
-    // Menu function for right click make current task
-    private void makeCurrentTask(String task)
-    {
-        TaskLockData data = getTaskData();
-
-        data.setCurrentTask(task);
-
-        saveTaskData(data);
-    }
-
-    // Menu function for right click backlog task
-    private void backlogTask(String task)
-    {
-        TaskLockData data = getTaskData();
-
-        data.getBacklog().add(task);
-        data.getActive().remove(task);
-
-        saveTaskData(data);
     }
 
 }

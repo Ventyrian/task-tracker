@@ -1,11 +1,11 @@
-package com.tasklock;
+package com.tasktracker;
 
 import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class TaskLockData
+public class TaskTrackerData
 {
     private String currentTask = "";
     private List<String> active = new ArrayList<>();
