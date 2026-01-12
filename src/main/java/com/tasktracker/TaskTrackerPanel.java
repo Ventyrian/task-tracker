@@ -60,11 +60,9 @@ public class TaskTrackerPanel extends PluginPanel
     // Completed List section of UI
     private final JLabel completedHeader =  new JLabel(completedString);
     private final JPanel completedListPanel = new JPanel();
-    private final JButton completedButton =  new JButton("Details");
-    // Borders used in UI construction
-    private final Border margin = BorderFactory.createEmptyBorder(10,10,10,10);
-    private final Border line = BorderFactory.createLineBorder(Color.WHITE);
-    private final Border compoundBorder = BorderFactory.createCompoundBorder(line, margin);
+    private final JButton completedButton =  new JButton("Edit | Details");
+    // Border used in UI construction
+    private final Border compoundBorder = BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE), BorderFactory.createEmptyBorder(10,10,10,10));
     // Managers and logger
     private final TaskTrackerPlugin plugin;
     private final SpriteManager spriteManager;
@@ -126,7 +124,10 @@ public class TaskTrackerPanel extends PluginPanel
         addSection(this, c, activeHeader, activeListPanel, activeButton, data.getActive(), activeString);
 
         // SECTION 3: Backlog
-        addSection(this, c, backlogHeader, backlogListPanel, backlogButton, data.getBacklog(), backlogString);
+        if (plugin.isBacklogEnabled())
+        {
+            addSection(this, c, backlogHeader, backlogListPanel, backlogButton, data.getBacklog(), backlogString);
+        }
 
         // SECTION 4: Completed Tasks
         addSection(this, c, completedHeader, completedListPanel, completedButton, plugin.getCompletedTaskList(), completedString);
@@ -403,19 +404,40 @@ public class TaskTrackerPanel extends PluginPanel
             // If list is not empty, add each task to the panel
             else
             {
-                int index = 1;
+                int index = plugin.newestCompletedFirst() ? contentList.size() : 1;
+                boolean milestoneFound = false;
+                int milestoneInterval = plugin.getMilestoneInterval();
+                Color milestoneColor = plugin.getMilestoneColor();
+
                 for (String task : contentList)
                 {
                     taskLabel = new JLabel();
                     if (baseHeader.equals(completedString))
                     {
-                        taskLabel.setText(index++ + ". " + task);
+                        taskLabel.setText(index + ". " + task);
+                        if (milestoneInterval != 0)
+                        {
+                            if (index % milestoneInterval == 0)
+                            {
+                                milestoneFound = true;
+                                taskLabel.setForeground(milestoneColor);
+                            }
+                            else
+                            {
+                                milestoneFound = false;
+                                taskLabel.setForeground(Color.WHITE);
+                            }
+                        }
+                        else
+                        {
+                            taskLabel.setForeground(Color.WHITE);
+                        }
                     }
                     else
                     {
                         taskLabel.setText("• " + task);
+                        taskLabel.setForeground(Color.WHITE);
                     }
-                    taskLabel.setForeground(Color.WHITE);
                     if (task.equals(currentTaskLabel.getText()) && baseHeader.equals(activeString))
                     {
                         taskLabel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(plugin.getCurrentTaskBorderColor()),BorderFactory.createEmptyBorder(3,0,3,3)));
@@ -423,9 +445,10 @@ public class TaskTrackerPanel extends PluginPanel
 
                     taskLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
                     taskLabel.setToolTipText(task);
-                    addMouseListeners(taskLabel,createPopupMenu(task,baseHeader));
+                    addMouseListeners(taskLabel,createPopupMenu(task,baseHeader),milestoneFound);
                     panel.add(taskLabel);
 
+                    index = plugin.newestCompletedFirst() ? index - 1 : index + 1;
                 }
             }
         }
@@ -469,15 +492,24 @@ public class TaskTrackerPanel extends PluginPanel
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        if (!plugin.isBacklogEnabled())
+        {
+            gbc.fill = GridBagConstraints.NONE;
+            gbc.anchor = GridBagConstraints.CENTER;
+            gbc.gridwidth = 2;
+        }
         rollTaskButton.setHorizontalTextPosition(SwingConstants.RIGHT);
         rollTaskButton.setMargin(new Insets(2, 2, 2, 2));
         buttonContainer.add(rollTaskButton, gbc);
-        // Add Backlog Task Button ROW 1 BUTTON 2 (RIGHT)
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        backlogTaskButton.setHorizontalTextPosition(SwingConstants.RIGHT);
-        backlogTaskButton.setMargin(new Insets(2, 2, 2, 2));
-        buttonContainer.add(backlogTaskButton, gbc);
+        if (plugin.isBacklogEnabled())
+        {
+            // Add Backlog Task Button ROW 1 BUTTON 2 (RIGHT)
+            gbc.gridx = 1;
+            gbc.gridy = 0;
+            backlogTaskButton.setHorizontalTextPosition(SwingConstants.RIGHT);
+            backlogTaskButton.setMargin(new Insets(2, 2, 2, 2));
+            buttonContainer.add(backlogTaskButton, gbc);
+        }
         // Add Complete Task Button ROW 2 BUTTON 3 (CENTER)
         gbc.gridx = 0;
         gbc.gridy = 1;
@@ -541,11 +573,14 @@ public class TaskTrackerPanel extends PluginPanel
                 menu.add(resetCurrentItem);
             }
 
-            JMenuItem backlogItem = new JMenuItem("Backlog Task");
-            backlogItem.addActionListener(e -> {
-                plugin.backlogTask(task);
-            });
-            menu.add(backlogItem);
+            if (plugin.isBacklogEnabled())
+            {
+                JMenuItem backlogItem = new JMenuItem("Backlog Task");
+                backlogItem.addActionListener(e -> {
+                    plugin.backlogTask(task);
+                });
+                menu.add(backlogItem);
+            }
 
         }
 
@@ -556,7 +591,7 @@ public class TaskTrackerPanel extends PluginPanel
     }
 
     // Helper function to add all mouse listeners
-    private void addMouseListeners(JLabel label, JPopupMenu menu)
+    private void addMouseListeners(JLabel label, JPopupMenu menu, boolean milestone)
     {
         label.addMouseListener(new MouseAdapter() {
             @Override
@@ -567,7 +602,14 @@ public class TaskTrackerPanel extends PluginPanel
 
             @Override
             public void mouseExited(MouseEvent e) {
-                label.setForeground(Color.WHITE);
+                if (milestone)
+                {
+                    label.setForeground(plugin.getMilestoneColor());
+                }
+                else
+                {
+                    label.setForeground(Color.WHITE);
+                }
             }
 
             @Override

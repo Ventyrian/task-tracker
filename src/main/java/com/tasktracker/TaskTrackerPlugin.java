@@ -137,7 +137,14 @@ public class TaskTrackerPlugin extends Plugin
         // Sort Completed Tasks
         if (data.getCompleted() != null)
         {
-            data.getCompleted().sort(Comparator.comparing(CompletedTask::getCompletedAt));
+            if (newestCompletedFirst())
+            {
+                data.getCompleted().sort(Comparator.comparing(CompletedTask::getCompletedAt).reversed());
+            }
+            else
+            {
+                data.getCompleted().sort(Comparator.comparing(CompletedTask::getCompletedAt));
+            }
         }
 
         String json = gson.toJson(data);
@@ -195,15 +202,19 @@ public class TaskTrackerPlugin extends Plugin
         {
             playSound("equip.wav");
             data.getBacklog().add(currentTask);
+            data.getActive().remove(currentTask);
         }
         else if (key.equals("complete"))
         {
             playSound("coins.wav");
             data.getCompleted().add(new CompletedTask(currentTask));
+            if (removeFromActive())
+            {
+                data.getActive().remove(currentTask);
+            }
         }
-        data.getActive().remove(currentTask);
-        data.setCurrentTask("");
 
+        data.setCurrentTask("");
         saveTaskData(data);
     }
 
@@ -483,6 +494,18 @@ public class TaskTrackerPlugin extends Plugin
         return null;
     }
 
+    // Helper function to see if backlog is enabled
+    public boolean isBacklogEnabled()
+    {
+        return config.enableBacklog();
+    }
+
+    // Helper function to see if we remove current task from active list after completion
+    public boolean removeFromActive()
+    {
+        return config.removeActive();
+    }
+
     // Helper function to get the current config color
     public Color getCurrentTaskBorderColor()
     {
@@ -499,5 +522,23 @@ public class TaskTrackerPlugin extends Plugin
     public String getTimestampFormat()
     {
         return config.timestampFormat().getPattern();
+    }
+
+    // Helper function to determine sort order for completed tasks
+    public boolean newestCompletedFirst()
+    {
+        return config.completedSortStyle().equals(TaskTrackerConfig.SortStyle.NEWEST);
+    }
+
+    // Helper function to get the current milestone interval
+    public int getMilestoneInterval()
+    {
+        return config.milestoneInterval();
+    }
+
+    // Helper function to get the current milestone highlight color
+    public Color getMilestoneColor()
+    {
+        return config.milestoneColor();
     }
 }
