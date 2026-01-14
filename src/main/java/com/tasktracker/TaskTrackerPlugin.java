@@ -3,13 +3,10 @@ package com.tasktracker;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import javax.inject.Inject;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.LineEvent;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -56,6 +53,9 @@ public class TaskTrackerPlugin extends Plugin
 
     @Inject
     private Gson gson;
+
+    @Inject
+    private AudioPlayer audioPlayer;
 
     private TaskTrackerPanel panel;
     private NavigationButton navButton;
@@ -296,41 +296,18 @@ public class TaskTrackerPlugin extends Plugin
 
         audioExecutor.submit( () ->
         {
+            String path = "/com/tasktracker/audio/" + soundFile;
             // Load the file from resources
-            try (InputStream rawStream = getClass().getResourceAsStream("audio/" + soundFile);)
+            try (InputStream stream = getClass().getResourceAsStream(path))
             {
-                if (rawStream == null)
+                if (stream == null)
                 {
+                    log.warn("Sound file not found :{}",path);
                     return;
                 }
 
-                // Buffer the stream to prevent exceptions (This is raw data)
-                InputStream bufferedSteam = new BufferedInputStream(rawStream);
-                // Translate to an audioStream rawData -> audioData
-                AudioInputStream audioStream = AudioSystem.getAudioInputStream(bufferedSteam);
+                audioPlayer.play(stream, 0);
 
-                // Get the clip (create small audio player)
-                Clip clip = AudioSystem.getClip();
-
-                // Add a listener to close the clip when done
-                clip.addLineListener(event ->
-                {
-                    if (event.getType() == LineEvent.Type.STOP)
-                    {
-                        clip.close();
-                    }
-                });
-
-                // Load the audio
-                clip.open(audioStream);
-
-                // Optional: Reduce volume slightly if it's too loud
-                // FloatControl gainControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-                // gainControl.setValue(-10.0f); // Reduce by 10 decibels
-
-                // Play the audio
-                log.debug("Playing sound " +  soundFile);
-                clip.start();
             }
             catch (Exception e)
             {
