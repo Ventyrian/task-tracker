@@ -4,6 +4,7 @@ Allows for the user to add custom tasks to a list and roll a random task to comp
 ## Features
 - Ability to have three sets of tasks: active, backlog, and completed
 - Ability to roll a random task from the set of active tasks
+- Ability to set custom repeatable tasks via right clicking a hovered active task
 - Completed tasks will have a date associated with it, to keep track of progress
 - Ability to configure UI elements such as border color, milestone highlight, date format, and more
 - Icons associated with keywords will be displayed next to the current task
@@ -19,7 +20,7 @@ These are not case sensitive and some have priority over others
 - *Enable Sounds* determines if the SFX associated with the Roll, Backlog, and Complete Buttons is played
 - *Enable Backlog* determines if the backlog box and button is displayed
 - *Remove from Active* determines if the completed task is removed from the active task list after completion
-- *Border Color* determines the color of the border the current active task will have within the active task list
+- *Highlight Color* determines the highlight color of the current task within the active task list
 - *Date Format* determines the format of the date and time to be displayed in the *Edit | Details* window of the completed task list
 - *Sort Order* determines the order in which completed tasks are displayed
 - *Milestone Interval* determines the number of completed tasks required to highlight the next milestone (if set to 0 no milestones will be set)
