@@ -540,6 +540,11 @@ public class TaskTrackerPlugin extends Plugin
         return config.completedSortStyle().equals(TaskTrackerConfig.SortStyle.NEWEST);
     }
 
+    public boolean getShowIndex()
+    {
+        return config.completedIndex();
+    }
+
     // Helper function to get the current milestone interval
     public int getMilestoneInterval()
     {

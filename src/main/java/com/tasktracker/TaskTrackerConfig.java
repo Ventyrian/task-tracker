@@ -114,12 +114,23 @@ public interface TaskTrackerConfig extends Config
         return SortStyle.OLDEST;
     }
 
+    @ConfigItem (
+            keyName = "completedIndex",
+            name = "Show Index Number",
+            description = "Show the index number next to completed tasks in the panel.",
+            position = 7
+    )
+    default boolean  completedIndex()
+    {
+        return true;
+    }
+
     @Range(min = 0)
     @ConfigItem(
             keyName = "milestoneInterval",
             name = "Milestone Interval",
             description = "The number of completed tasks between highlights (e.g., 10). If set to 0 highlighting will be disabled.",
-            position = 7
+            position = 8
     )
     default int  milestoneInterval()
     {
@@ -130,12 +141,19 @@ public interface TaskTrackerConfig extends Config
             keyName = "milestoneColor",
             name = "Milestone Color",
             description = "The color used to highlight the milestone.",
-            position = 8
+            position = 9
     )
     default Color  milestoneColor()
     {
         return Color.GREEN;
     }
+
+    @ConfigSection(
+            name = "WARNING: IF YOU CLICK RESET THIS WILL ALSO CLEAR ALL TASK DATA!",
+            description = "Only click rest after you have saved your task data in a safe location.",
+            position = 10
+    )
+    String warningSection = "warningSection";
 
     @ConfigItem(
             keyName = "allTasksJson",
@@ -148,11 +166,4 @@ public interface TaskTrackerConfig extends Config
     {
         return "";
     }
-
-    @ConfigSection(
-            name = "WARNING: IF YOU CLICK RESET THIS WILL ALSO CLEAR ALL TASK DATA!",
-            description = "Only click rest after you have saved your task data in a safe location.",
-            position = 9
-    )
-    String warningSection = "warningSection";
 }

@@ -415,7 +415,14 @@ public class TaskTrackerPanel extends PluginPanel
                     taskLabel = new JLabel();
                     if (baseHeader.equals(completedString))
                     {
-                        taskLabel.setText(index + ". " + task);
+                        if (plugin.getShowIndex())
+                        {
+                            taskLabel.setText(index + ". " + task);
+                        }
+                        else
+                        {
+                            taskLabel.setText("• " + task);
+                        }
                         if (milestoneInterval != 0)
                         {
                             if (index % milestoneInterval == 0)
