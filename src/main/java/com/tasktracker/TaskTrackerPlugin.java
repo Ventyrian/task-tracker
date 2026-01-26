@@ -24,8 +24,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -180,20 +182,20 @@ public class TaskTrackerPlugin extends Plugin
     // Button function backlog or complete a task based on key
     public void backlogCompleteTask(String key)
     {
-        log.info("Backlog Complete Task Button Clicked");
+        log.debug("Backlog Complete Task Button Clicked");
         TaskTrackerData data = getTaskData();
         String currentTask = data.getCurrentTask();
         List<String> activeTasks = data.getActive();
 
         if (currentTask == null || currentTask.isEmpty() || currentTask.equals("No Current Task"))
         {
-            log.info("No Current Task");
+            log.debug("No Current Task");
             return;
         }
 
         if (activeTasks.isEmpty() || !activeTasks.contains(currentTask))
         {
-            log.info("No Active Tasks or Current Task not in list");
+            log.debug("No Active Tasks or Current Task not in list");
             return;
         }
 
@@ -207,7 +209,7 @@ public class TaskTrackerPlugin extends Plugin
         {
             playSound("coins.wav");
             data.getCompleted().add(new CompletedTask(currentTask));
-            if (removeFromActive())
+            if (removeFromActive() && !isTaskRepeatable(currentTask))
             {
                 data.getActive().remove(currentTask);
             }
@@ -248,11 +250,17 @@ public class TaskTrackerPlugin extends Plugin
         switch(section)
         {
             case TaskTrackerPanel.backlogString:
-                data.getActive().add(task);
+                if (!data.getActive().contains(task))
+                {
+                    data.getActive().add(task);
+                }
                 data.getBacklog().remove(task);
                 break;
             case TaskTrackerPanel.completedString:
-                data.getActive().add(task);
+                if (!data.getActive().contains(task))
+                {
+                    data.getActive().add(task);
+                }
                 data.getCompleted().removeIf(t -> t.getTask().equals(task));
                 break;
             default:
@@ -280,6 +288,23 @@ public class TaskTrackerPlugin extends Plugin
         playSound("equip.wav");
         data.getBacklog().add(task);
         data.getActive().remove(task);
+
+        saveTaskData(data);
+    }
+
+    // Menu function to toggle repeatable tasks
+    public void toggleRepeatableTask(String task)
+    {
+        TaskTrackerData data = getTaskData();
+        Set<String> repeatableTasks = data.getRepeatableTasks();
+        if (repeatableTasks.contains(task))
+        {
+            repeatableTasks.remove(task);
+        }
+        else
+        {
+            repeatableTasks.add(task);
+        }
 
         saveTaskData(data);
     }
@@ -318,8 +343,8 @@ public class TaskTrackerPlugin extends Plugin
     // Helper function to update inner TaskData Lists from text
     public boolean updateListFromText(TaskTrackerData data, String key, String text)
     {
-        // List for active and backlog tasks
-        List<String> newList = new ArrayList<>();
+        // HashSet for active and backlogged tasks
+        Set<String> uniqueTasks = new HashSet<>();
         // List for completed tasks
         List<CompletedTask> newCompletedTasks = new  ArrayList<>();
         // Date format from configuration
@@ -386,9 +411,12 @@ public class TaskTrackerPlugin extends Plugin
             // Active and Backlog Task Logic
             else
             {
-                newList.add(line.trim());
+                uniqueTasks.add(line.trim());
             }
         }
+
+        // List for active and backlog tasks
+        List<String> newList = new ArrayList<>(uniqueTasks);
 
         switch (key)
         {
@@ -405,6 +433,12 @@ public class TaskTrackerPlugin extends Plugin
 
         saveTaskData(data);
         return true;
+    }
+
+    // Helper function to see if task is repeatable
+    public boolean isTaskRepeatable(String task)
+    {
+        return getTaskData().getRepeatableTasks().contains(task);
     }
 
     // Helper function to get the completed task list in the List<String> format
@@ -483,9 +517,9 @@ public class TaskTrackerPlugin extends Plugin
     }
 
     // Helper function to get the current config color
-    public Color getCurrentTaskBorderColor()
+    public Color getCurrentTaskHighlightColor()
     {
-        return config.currentTaskBorderColor();
+        return config.currentTaskHighlightColor();
     }
 
     // Helper function to get the current dateTimeFormat

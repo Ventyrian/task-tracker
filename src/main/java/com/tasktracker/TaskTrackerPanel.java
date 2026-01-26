@@ -10,6 +10,7 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -440,12 +441,12 @@ public class TaskTrackerPanel extends PluginPanel
                     }
                     if (task.equals(currentTaskLabel.getText()) && baseHeader.equals(activeString))
                     {
-                        taskLabel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(plugin.getCurrentTaskBorderColor()),BorderFactory.createEmptyBorder(3,0,3,3)));
+                        taskLabel.setForeground(plugin.getCurrentTaskHighlightColor());
                     }
 
                     taskLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
                     taskLabel.setToolTipText(task);
-                    addMouseListeners(taskLabel,createPopupMenu(task,baseHeader),milestoneFound);
+                    addMouseListeners(taskLabel,createPopupMenu(task,baseHeader),milestoneFound,task,baseHeader);
                     panel.add(taskLabel);
 
                     index = plugin.newestCompletedFirst() ? index - 1 : index + 1;
@@ -582,6 +583,12 @@ public class TaskTrackerPanel extends PluginPanel
                 menu.add(backlogItem);
             }
 
+            JCheckBoxMenuItem repeatableItem = new JCheckBoxMenuItem("Repeatable");
+            repeatableItem.setSelected(plugin.isTaskRepeatable(task));
+            repeatableItem.setHorizontalTextPosition(SwingConstants.LEFT);
+            repeatableItem.addActionListener(e -> plugin.toggleRepeatableTask(task));
+            menu.add(repeatableItem);
+
         }
 
         menu.add(deleteItem);
@@ -591,7 +598,7 @@ public class TaskTrackerPanel extends PluginPanel
     }
 
     // Helper function to add all mouse listeners
-    private void addMouseListeners(JLabel label, JPopupMenu menu, boolean milestone)
+    private void addMouseListeners(JLabel label, JPopupMenu menu, boolean milestone, String task, String baseHeader)
     {
         label.addMouseListener(new MouseAdapter() {
             @Override
@@ -605,6 +612,10 @@ public class TaskTrackerPanel extends PluginPanel
                 if (milestone)
                 {
                     label.setForeground(plugin.getMilestoneColor());
+                }
+                if (baseHeader.equals(activeString) && task.equals(plugin.getCurrentTaskAsString()))
+                {
+                    label.setForeground(plugin.getCurrentTaskHighlightColor());
                 }
                 else
                 {

@@ -46,14 +46,14 @@ public interface TaskTrackerConfig extends Config
     }
 
     @ConfigItem(
-            keyName = "currentTaskBorderColor",
-            name = "Border Color",
-            description = "The color of the border displayed around the current task in the active tasks list.",
+            keyName = "currentTaskHighlightColor",
+            name = "Highlight Color",
+            description = "The highlight color of the current task in the active tasks list.",
             position = 4
     )
-    default Color currentTaskBorderColor()
+    default Color currentTaskHighlightColor()
     {
-        return Color.GREEN;
+        return Color.YELLOW;
     }
 
     @Getter
